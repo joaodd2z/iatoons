@@ -1,0 +1,53 @@
+# Ambientes virtuais e Bytecode Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Arquivos de mídia pesados e legendas
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.flv
+*.wmv
+*.wav
+*.mp3
+*.aac
+*.flac
+*.ogg
+*.srt
+*.ass
+*.vtt
+
+# Pastas de exportação, frames e temporários
+exportados/
+temp/
+frames/
+cortes/
+outputs/
+
+# Modelos locais, caches de transcrição/IA e estado local em dados/
+dados/*
+!dados/config_ia.json
+!dados/preset_*.json
+*.bin
+*.onnx
+*.pt
+*.pth
+
+# Node / Electron / IDEs / Sistema Operacional / Segredos
+node_modules/
+.env
+.env.*
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp
+*.log

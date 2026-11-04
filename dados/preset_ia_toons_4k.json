@@ -1,0 +1,21 @@
+{
+  "nome": "IA TOONS 4K",
+  "imagem_ativa": true,
+  "intensidade": 100,
+  "alta_qualidade": true,
+  "nitidez_ativa": true,
+  "nitidez": 0.65,
+  "contraste_ativo": true,
+  "contraste": 1.06,
+  "saturacao_ativa": true,
+  "saturacao": 1.12,
+  "brilho_ativo": true,
+  "brilho": 0.01,
+  "ruido_ativo": true,
+  "reducao_ruido": 1.5,
+  "audio_ativo": true,
+  "volume_inicial": 1.0,
+  "volume_final": 1.25,
+  "duracao_rampa": 8.0,
+  "limiter": 0.95
+}

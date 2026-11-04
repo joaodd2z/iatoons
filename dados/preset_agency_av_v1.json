@@ -1,0 +1,20 @@
+{
+  "nome": "AGENCY_AV_V1",
+  "imagem_ativa": true,
+  "intensidade": 100,
+  "reducao_ruido": 0.8,
+  "nitidez": 0.45,
+  "contraste": 1.03,
+  "saturacao": 1.05,
+  "gamma": 1.03,
+  "brilho": 0.0,
+  "alta_qualidade": true,
+  "fundo_desfoque": 26,
+  "audio_ativo": true,
+  "volume": 1.0,
+  "limiter": 0.95,
+  "pular_se_processado": true,
+  "crf": 17,
+  "preset_x264": "slow",
+  "audio_kbps": 192
+}

@@ -1,0 +1,9 @@
+"""Contrato estrutural compartilhado; permite providers simulados sem heran?a."""
+from typing import Protocol, runtime_checkable
+
+
+@runtime_checkable
+class AIProvider(Protocol):
+    def testar_conexao(self, modelo: str | None = None) -> bool | dict: ...
+    def listar_modelos(self) -> list[str]: ...
+    def analisar(self, modelo: str, prompt: str) -> dict: ...

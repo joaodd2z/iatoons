@@ -1,0 +1,27 @@
+{
+  "dados\\modelos_whisper\\models--Systran--faster-whisper-small\\blobs\\3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671": {
+    "target": "..\\..\\blobs\\42\\429ffc84492c1122da005d7274fc397bf142fe12066eb7e4612dc25c579db2ea",
+    "resolvido": "D:\\gerador corte\\GeradorDeCortes\\dados\\modelos_whisper\\blobs\\42\\429ffc84492c1122da005d7274fc397bf142fe12066eb7e4612dc25c579db2ea",
+    "size": 483546902
+  },
+  "dados\\modelos_whisper\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120\\config.json": {
+    "target": "..\\..\\blobs\\e5047537059bd8f182d9ca64c470201585015187",
+    "resolvido": "D:\\gerador corte\\GeradorDeCortes\\dados\\modelos_whisper\\models--Systran--faster-whisper-small\\blobs\\e5047537059bd8f182d9ca64c470201585015187",
+    "size": 2370
+  },
+  "dados\\modelos_whisper\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120\\model.bin": {
+    "target": "..\\..\\blobs\\3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+    "resolvido": "D:\\gerador corte\\GeradorDeCortes\\dados\\modelos_whisper\\blobs\\42\\429ffc84492c1122da005d7274fc397bf142fe12066eb7e4612dc25c579db2ea",
+    "size": 483546902
+  },
+  "dados\\modelos_whisper\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120\\tokenizer.json": {
+    "target": "..\\..\\blobs\\7818adb6de9fa3064d3ff81226fdd675be1f6344",
+    "resolvido": "D:\\gerador corte\\GeradorDeCortes\\dados\\modelos_whisper\\models--Systran--faster-whisper-small\\blobs\\7818adb6de9fa3064d3ff81226fdd675be1f6344",
+    "size": 2203239
+  },
+  "dados\\modelos_whisper\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120\\vocabulary.txt": {
+    "target": "..\\..\\blobs\\c9074644d9d1205686f16d411564729461324b75",
+    "resolvido": "D:\\gerador corte\\GeradorDeCortes\\dados\\modelos_whisper\\models--Systran--faster-whisper-small\\blobs\\c9074644d9d1205686f16d411564729461324b75",
+    "size": 459861
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "max_chamadas_episodio": 10,
+  "max_cortes": 5,
+  "janela_segundos": 360.0,
+  "sobreposicao_segundos": 30.0,
+  "provider_ativo": "gemini",
+  "modelo_gemini": "gemini-3.6-flash",
+  "modelo_mistral": "ministral-14b-2512",
+  "modelo_groq": "openai/gpt-oss-120b",
+  "fallback_automatico": true,
+  "fallback_autenticacao": false,
+  "provider_preferido": null,
+  "ordem_fallback": [
+    "mistral",
+    "groq",
+    "gemini"
+  ]
+}
