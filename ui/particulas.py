@@ -10,6 +10,8 @@ CORES = ("#A78BFA", "#7C3AED", "#C4B5FD", "#F5C451", "#E9D5FF")
 class FaixaParticulas(tk.Canvas):
     def __init__(self, master, *, altura=110, fundo="#180D2C", titulo="IATOONS", subtitulo="",
                  tam_titulo=26, quantidade=40, **kw):
+        # width=1: o Canvas pede ~378 px por padrão e alargaria a barra lateral; o pack(fill="x") estica
+        kw.setdefault("width", 1)
         super().__init__(master, height=altura, bg=fundo, highlightthickness=0, bd=0, **kw)
         self._titulo, self._subtitulo, self._tam = titulo, subtitulo, tam_titulo
         self._n = quantidade

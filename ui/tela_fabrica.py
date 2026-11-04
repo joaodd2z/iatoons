@@ -71,12 +71,12 @@ class TelaFabrica(ctk.CTkFrame):
 
         # contas
         self._frame_contas = ctk.CTkFrame(corpo, fg_color="transparent")
-        self._frame_contas.grid(row=1, column=0, sticky="ew")
+        self._frame_contas.grid(row=2, column=0, sticky="ew")
         self._frame_contas.grid_columnconfigure(0, weight=1)
         self._montar_contas()
 
         botoes = ctk.CTkFrame(corpo, fg_color="transparent")
-        botoes.grid(row=2, column=0, sticky="ew", pady=(4, 8))
+        botoes.grid(row=3, column=0, sticky="ew", pady=(4, 8))
         ctk.CTkButton(botoes, text="+ Nova conta", width=130, fg_color=BORDA, hover_color=CLARO,
                       command=self._nova_conta).pack(side="left", padx=(0, 8))
         ctk.CTkButton(botoes, text="💾 Salvar contas", width=140, fg_color=BORDA, hover_color=CLARO,
@@ -85,7 +85,7 @@ class TelaFabrica(ctk.CTkFrame):
                       command=self._atualizar_status).pack(side="left")
 
         acoes = ctk.CTkFrame(corpo, fg_color=CARD, corner_radius=12, border_width=1, border_color=BORDA)
-        acoes.grid(row=3, column=0, sticky="ew", pady=(4, 8))
+        acoes.grid(row=1, column=0, sticky="ew", pady=(0, 10))  # logo abaixo da meta: é o botão do dia a dia
         ctk.CTkLabel(acoes, text="Produção", font=ctk.CTkFont(size=15, weight="bold"), text_color=BRANCO
                      ).grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(12, 2))
         ctk.CTkLabel(acoes, text="1) Coloque os episódios em ENTRADA/<conta>.  2) Clique em Produzir tudo (pode deixar rodando à noite).  "
@@ -103,7 +103,7 @@ class TelaFabrica(ctk.CTkFrame):
                                         command=self._so_agenda)
         self.btn_agenda.grid(row=2, column=3, padx=(8, 16), pady=(0, 14), sticky="w")
 
-        self.log = ctk.CTkTextbox(self, height=150, fg_color="#120A22", text_color=CINZA, font=ctk.CTkFont(family="Consolas", size=12))
+        self.log = ctk.CTkTextbox(self, height=110, fg_color="#120A22", text_color=CINZA, font=ctk.CTkFont(family="Consolas", size=12))
         self.log.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 14))
         self._escrever("Pronto. Contas lidas de contas.json.")
 
