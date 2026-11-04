@@ -1,6 +1,8 @@
-"""Perfil visual único e fixo do projeto Yattuns: TOONMIX."""
+"""Perfis visuais. TOONMIX é o padrão; cada conta nova pode ter o seu em dados/perfis/<id>.json
+(fundo 1080x1920 com a mesma moldura, cores do título/legenda e nome do canal), sem mexer em código."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import json
 from pathlib import Path
 
 from modules import preset as P
@@ -131,11 +133,67 @@ PERFIS_VISUAIS: dict[str, PerfilVisual] = {
 }
 
 PERFIL_PADRAO_ID = "toonmix"
+PERFIS_DIR: Path = P.DADOS_DIR / "perfis"
+
+
+def _estilo(base: EstiloTexto, dados: dict | None) -> EstiloTexto:
+    if not dados:
+        return base
+    campos = {k: v for k, v in dados.items() if k in EstiloTexto.__dataclass_fields__}
+    return replace(base, **campos)
+
+
+def _perfil_de_json(caminho: Path) -> PerfilVisual:
+    """dados/perfis/<id>.json -> PerfilVisual. Só "id" e "fundo" são obrigatórios; o resto herda do TOONMIX.
+    O fundo precisa ter a mesma moldura do TOONMIX (vídeo em y=482–1425), porque as zonas são as mesmas."""
+    d = json.loads(caminho.read_text(encoding="utf-8"))
+    fundo = Path(d["fundo"])
+    if not fundo.is_absolute():
+        fundo = P.ASSETS_DIR / fundo
+    base = PERFIL_TOONMIX
+    return replace(
+        base,
+        id=str(d["id"]).lower(),
+        nome=d.get("nome", str(d["id"]).upper()),
+        fundo_path=fundo,
+        nome_canal=d.get("nome_canal", d.get("nome", base.nome_canal)),
+        cor_principal=d.get("cor_principal", base.cor_principal),
+        cor_secundaria=d.get("cor_secundaria", base.cor_secundaria),
+        titulo=_estilo(base.titulo, d.get("titulo")),
+        legenda=_estilo(base.legenda, d.get("legenda")),
+        titulo_agencia=_estilo(base.estilo_titulo_agencia, d.get("titulo_agencia") or d.get("titulo")),
+        legenda_agencia=_estilo(base.estilo_legenda_agencia, d.get("legenda_agencia") or d.get("legenda")),
+    )
+
+
+def _carregar_perfis_extras() -> dict[str, PerfilVisual]:
+    extras: dict[str, PerfilVisual] = {}
+    if PERFIS_DIR.is_dir():
+        for arq in sorted(PERFIS_DIR.glob("*.json")):
+            try:
+                perfil = _perfil_de_json(arq)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            extras[perfil.id] = perfil
+    return extras
+
+
+def todos_perfis() -> dict[str, PerfilVisual]:
+    return {**PERFIS_VISUAIS, **_carregar_perfis_extras()}
+
+
+def normalizar_perfil_id(perfil_id: str | None) -> str:
+    """Id de perfil válido: o informado, se existir (TOONMIX ou dados/perfis/*.json); senão TOONMIX (estado legado)."""
+    pid = str(perfil_id or "").strip().lower()
+    return pid if pid in todos_perfis() else PERFIL_PADRAO_ID
 
 
 def obter_perfil(perfil: str | PerfilVisual | None = None) -> PerfilVisual:
-    """Retorna sempre o perfil único e fixo TOONMIX, validando seu arquivo de fundo."""
-    resolvido = PERFIL_TOONMIX
+    """Resolve o perfil pelo id (TOONMIX quando vazio ou desconhecido) e valida o arquivo de fundo."""
+    if isinstance(perfil, PerfilVisual):
+        resolvido = perfil
+    else:
+        resolvido = todos_perfis().get(str(perfil or PERFIL_PADRAO_ID).lower(), PERFIL_TOONMIX)
     if not resolvido.disponivel:
         raise FileNotFoundError(
             f"Fundo do perfil {resolvido.nome} não encontrado: {resolvido.fundo_path}"
@@ -144,10 +202,12 @@ def obter_perfil(perfil: str | PerfilVisual | None = None) -> PerfilVisual:
 
 
 def listar_perfis() -> list[PerfilVisual]:
-    """Retorna exclusivamente o perfil fixo TOONMIX."""
-    return [PERFIL_TOONMIX]
+    return list(todos_perfis().values())
 
 
 def perfil_por_nome(nome: str = "TOONMIX") -> PerfilVisual:
-    """Resolve qualquer nome para o perfil único TOONMIX."""
-    return obter_perfil("toonmix")
+    alvo = str(nome or "").strip().lower()
+    for p in todos_perfis().values():
+        if p.id == alvo or p.nome.lower() == alvo:
+            return obter_perfil(p)
+    return obter_perfil(PERFIL_PADRAO_ID)

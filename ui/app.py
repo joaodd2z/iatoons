@@ -37,6 +37,7 @@ class AppIAToons(ctk.CTk):
     ALTURA_INIT  = 760
 
     ABAS = [
+        ("🏭  Fábrica 100/dia", "fabrica"),
         ("⚡  Esteira de Produção", "importar"),
         ("🎛️  Ajustes Audiovisuais", "ajustes"),
         ("🤖  Configurações de IA", "config_ia"),
@@ -45,7 +46,7 @@ class AppIAToons(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("IA TOONS CUT — Gerador de Cortes Verticais")
+        self.title("IATOONS — Fábrica de Cortes Verticais")
         self.geometry(f"{self.LARGURA_INIT}x{self.ALTURA_INIT}")
         self.minsize(self.LARGURA_MIN, self.ALTURA_MIN)
         self.configure(fg_color=COR_ROXO_ESCURO)
@@ -76,7 +77,7 @@ class AppIAToons(ctk.CTk):
 
         self._construir_layout()
         self._aba_atual = None
-        self.navegar("importar")
+        self.navegar("fabrica")
 
     # ─── Layout ──────────────────────────────────────────────────────────────
 
@@ -95,20 +96,12 @@ class AppIAToons(ctk.CTk):
         self._sidebar.grid(row=0, column=0, sticky="nsew")
         self._sidebar.grid_propagate(False)
 
-        # Logo / título na sidebar
-        ctk.CTkLabel(
-            self._sidebar,
-            text="⚡ YATTUNS",
-            font=ctk.CTkFont(family="Arial", size=22, weight="bold"),
-            text_color=COR_BRANCO,
-        ).pack(pady=(28, 2))
-
-        ctk.CTkLabel(
-            self._sidebar,
-            text="Studio de Produção Contínua",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#A78BFA",
-        ).pack(pady=(0, 20))
+        # Logo com partículas (marca IATOONS)
+        from ui.particulas import FaixaParticulas
+        FaixaParticulas(
+            self._sidebar, altura=104, fundo=COR_ROXO_MEDIO, titulo="IATOONS",
+            subtitulo="Studio de Produção Contínua", tam_titulo=22, quantidade=34,
+        ).pack(fill="x", pady=(14, 10))
 
         ctk.CTkFrame(self._sidebar, height=1, fg_color=COR_ROXO_CLARO).pack(
             fill="x", padx=16, pady=(0, 16)
@@ -135,7 +128,7 @@ class AppIAToons(ctk.CTk):
         # Versão no rodapé da sidebar
         ctk.CTkLabel(
             self._sidebar,
-            text="Yattuns Studio Pro — v2.0",
+            text="IATOONS Studio — v3.0",
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color="#7C3AED",
         ).pack(side="bottom", pady=14)
@@ -196,6 +189,9 @@ class AppIAToons(ctk.CTk):
     def _resolver_tela(self, chave: str):
         """Retorna a classe da tela correspondente à chave."""
         # Importações locais para evitar importação circular
+        if chave == "fabrica":
+            from ui.tela_fabrica import TelaFabrica
+            return TelaFabrica
         if chave == "importar":
             from ui.tela_importar import TelaImportar
             return TelaImportar

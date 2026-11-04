@@ -1,0 +1,41 @@
+{
+  "pasta_base": "C:/IA_TOONS_FABRICA",
+  "contas": [
+    {
+      "id": "iatoons",
+      "nome": "IA TOONS (Family Guy)",
+      "perfil": "toonmix",
+      "ativa": true,
+      "cortes_por_episodio": 12,
+      "posts_por_dia": 34,
+      "janela": ["07:00", "23:30"],
+      "hashtags": "#familyguy #umafamiliadapesada #desenho #humor #kwai",
+      "idioma": "pt",
+      "qualidade": "rapida"
+    },
+    {
+      "id": "conta_2",
+      "nome": "Segunda conta (outro desenho)",
+      "perfil": "toonmix",
+      "ativa": false,
+      "cortes_por_episodio": 12,
+      "posts_por_dia": 33,
+      "janela": ["07:30", "23:30"],
+      "hashtags": "#desenho #humor #cortes #kwai",
+      "idioma": "pt",
+      "qualidade": "rapida"
+    },
+    {
+      "id": "conta_3",
+      "nome": "Terceira conta",
+      "perfil": "toonmix",
+      "ativa": false,
+      "cortes_por_episodio": 12,
+      "posts_por_dia": 33,
+      "horarios": [],
+      "hashtags": "#humor #cortes #kwai",
+      "idioma": "pt",
+      "qualidade": "rapida"
+    }
+  ]
+}

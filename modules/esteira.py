@@ -43,7 +43,7 @@ from modules.agencia.titulos_manual import selecionar_prontos
 from modules.config_ia import ConfigIA, carregar_config_ia
 from modules.importacao import InfoVideo, analisar_video
 from modules.intro import IntervaloIntro, carregar_intro, detectar_intro, salvar_intro
-from modules.perfis_visuais import PERFIL_PADRAO_ID, obter_perfil
+from modules.perfis_visuais import PERFIL_PADRAO_ID, normalizar_perfil_id, obter_perfil
 from modules.preset import DADOS_DIR
 from modules.sessao import caminho_normalizado
 from modules.tasks import CoordenadorRecursos, coordenador_recursos
@@ -489,7 +489,7 @@ class ContextoEpisodio:
             nome=dados.get("nome") or Path(dados["video_path"]).name,
             pasta_saida_base=dados.get("pasta_saida_base", ""),
             pasta_saida_episodio=dados.get("pasta_saida_episodio", ""),
-            perfil_visual_id="toonmix",
+            perfil_visual_id=normalizar_perfil_id(dados.get("perfil_visual_id")),
             idioma=dados.get("idioma", "pt"),
             modelo_whisper=dados.get("modelo_whisper", MODELO_PADRAO),
             transcricao_modo=dados.get("transcricao_modo", "preciso"),
@@ -960,7 +960,7 @@ class EsteiraProducao:
                     nome=nome,
                     pasta_saida_base=pasta_base,
                     pasta_saida_episodio=pasta_ep,
-                    perfil_visual_id="toonmix",
+                    perfil_visual_id=normalizar_perfil_id(perfil_visual_id),
                     idioma=idioma,
                     modelo_whisper=modelo_whisper,
                     transcricao_modo=transcricao_modo,
@@ -1556,8 +1556,8 @@ class EsteiraProducao:
                 preparacoes: dict[str, PreparacaoCorte] = {}
                 prontos_validados: list[PlanoAgencia] = []
                 falhas_preparacao: list[str] = []
-                ep.perfil_visual_id = "toonmix"
-                perfil = obter_perfil("toonmix")
+                ep.perfil_visual_id = normalizar_perfil_id(ep.perfil_visual_id)
+                perfil = obter_perfil(ep.perfil_visual_id)
                 ajustes = ep.ajustes_av or carregar_ajustes_agencia()
 
                 for idx, plano in enumerate(prontos, 1):
@@ -1697,8 +1697,8 @@ class EsteiraProducao:
 
             Path(ep.pasta_saida_episodio).mkdir(parents=True, exist_ok=True)
             transcricao = ep.transcricao
-            ep.perfil_visual_id = "toonmix"
-            perfil = obter_perfil("toonmix")
+            ep.perfil_visual_id = normalizar_perfil_id(ep.perfil_visual_id)
+            perfil = obter_perfil(ep.perfil_visual_id)
             ajustes = ep.ajustes_av or carregar_ajustes_agencia()
             total = len(ep.planos_prontos)
             erros_render: list[str] = []
@@ -2127,7 +2127,7 @@ class EsteiraProducao:
             except Exception:
                 pass
 
-            ep.perfil_visual_id = "toonmix"
+            ep.perfil_visual_id = normalizar_perfil_id(ep.perfil_visual_id)
             ep.cancelado = False
             ep.erro = ""
             ep.etapa_falha = ""

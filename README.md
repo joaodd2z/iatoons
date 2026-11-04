@@ -93,6 +93,44 @@ IA TOONS, o ANIMATOONS, o Corte normal e o Remix Narrativo continuam iguais.
 A composição usa o próprio vídeo como relógio: o fundo do perfil, com a zona de
 vídeo transparente, é sobreposto por cima. Assim não existe frame só com fundo.
 
+## Fábrica multi-conta (meta: 100 vídeos por dia)
+
+Para produzir em massa, para várias contas e nichos, sem precisar abrir episódio por episódio.
+
+**Pela interface:** aba **🏭 Fábrica 100/dia** (primeira aba).
+1. Configure as contas: nome, perfil visual, posts por dia, cortes por episódio e hashtags. Depois clique em **Salvar contas**.
+2. Clique em **Entrada** de cada conta e coloque ali os episódios daquela conta.
+3. Clique em **▶ Produzir tudo e montar agenda**. Pode deixar rodando à noite.
+4. Clique em **Para postar**. Cada dia tem uma pasta com os vídeos numerados na ordem e no horário de postagem, a legenda pronta de cada um (`.txt`), a capa e um `AGENDA.csv`, que abre no Excel.
+
+**Sem interface (deixar rodando):** dois cliques em `FABRICA_RODAR_TUDO.bat`, ou:
+```powershell
+.venv\Scripts\python.exe fabrica.py preparar       # cria contas.json e as pastas
+.venv\Scripts\python.exe fabrica.py tudo --dias 2  # produz e monta 2 dias de agenda
+.venv\Scripts\python.exe fabrica.py status         # estoque por conta e quantos dias ele cobre
+```
+
+**Como a conta da meta fecha:** 3 contas de ~33 posts/dia = 100 vídeos/dia. Com 12 cortes por episódio, são cerca de **9 episódios por dia** no total.
+
+**Regras da fábrica:**
+- **Sem repetição:** cada corte entra na agenda uma vez só (registro em `fabrica_registro.json`).
+- **Intercalação:** os episódios se alternam (A1 B1 C1 A2…), para o público não ver vários cortes seguidos do mesmo episódio.
+- **Horários:** os posts são espalhados pela janela da conta. Hoje, só entram os horários que ainda não passaram.
+- **Revisão:** corte que a esteira mandou para revisão não entra na agenda. Ele aparece no status para revisar na **Esteira de Produção**.
+- **Qualidade:** `qualidade: "rapida"` (padrão da fábrica) usa x264 veryfast e CRF 20, cerca de 3 a 4 vezes mais rápido que o `slow` CRF 17, e no celular a diferença quase não aparece. Para o visual máximo, use `"maxima"`.
+- **Retomada:** a fábrica não refaz episódio já produzido e continua de onde parou.
+- **Publicação:** a fábrica **não publica nada sozinha**. A postagem continua sendo feita pela pessoa, com o arquivo e a legenda prontos.
+
+**Perfil visual por conta (outro nicho):** crie `dados/perfis/<id>.json`:
+```json
+{"id": "cortes_s", "nome": "CORTES S", "fundo": "fundo_cortes_s.png", "titulo": {"cor": "0x00E5FF"}, "legenda": {"cor": "white"}}
+```
+- **Fundo:** precisa ter 1080×1920, com a mesma moldura do TOONMIX (área do vídeo em y=482–1425). Coloque o arquivo em `assets/`.
+- **Escolha na conta:** o perfil aparece na lista de perfis da conta.
+- **Id inválido:** um id que não exista volta para o TOONMIX.
+
+> Atenção a direitos autorais: cortes de séries como Family Guy usam conteúdo de terceiros, e plataformas como o Kwai podem desmonetizar ou derrubar contas por isso, principalmente postando em volume. Para contas novas, o mais seguro é usar conteúdo licenciado, de domínio público ou próprio.
+
 ## Requisitos
 
 - Windows com Python compatível;

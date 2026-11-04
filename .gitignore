@@ -51,3 +51,7 @@ desktop.ini
 .DS_Store
 *.tmp
 *.log
+
+# Configuração pessoal da fábrica (cada PC tem a sua; o modelo é contas.exemplo.json)
+contas.json
+venv_install.log
