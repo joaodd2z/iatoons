@@ -10,7 +10,8 @@
   <img src="https://img.shields.io/badge/meta-100%20v%C3%ADdeos%2Fdia-F5C451?style=for-the-badge" alt="meta 100 vídeos por dia">
   <img src="https://img.shields.io/badge/contas-v%C3%A1rias-7C3AED?style=for-the-badge" alt="várias contas">
   <img src="https://img.shields.io/badge/vers%C3%A3o-3.0-A78BFA?style=for-the-badge" alt="versão 3.0">
-  <img src="https://img.shields.io/badge/testes%20novos-11%20passando-10B981?style=for-the-badge" alt="11 testes novos passando">
+  <img src="https://img.shields.io/badge/capa-padr%C3%A3o%20da%20ag%C3%AAncia-E11D48?style=for-the-badge" alt="capa no padrão da agência">
+  <img src="https://img.shields.io/badge/testes%20novos-14%20passando-10B981?style=for-the-badge" alt="14 testes novos passando">
 </p>
 
 ---
@@ -25,6 +26,24 @@
 A esteira de sempre continua lá, do mesmo jeito que ela já conhece:
 
 <p align="center"><img src="vitrine/depois_esteira.png" alt="Esteira de Produção" width="85%"></p>
+
+---
+
+## Estúdio de Capa (regra da agência)
+
+A capa é uma das regras da agência, então ela ganhou uma tela só para isso.
+
+<p align="center"><img src="vitrine/depois_capa.png" alt="Estúdio de Capa com prévia ao vivo" width="100%"></p>
+
+- **Prévia ao vivo:** abre qualquer corte pronto e mostra a capa do jeito que vai ficar.
+- **Escolher o quadro:** arrasta a barrinha até a cena certa, ou clica em **✨ Melhor quadro** para o app achar a cena mais forte.
+- **Texto do jeito dela:** título inteiro ou encurtado, posição (topo, meio ou embaixo), tamanho, maiúsculas, cor do texto e do contorno, tarja atrás do texto e selo como "PARTE 1".
+- **⭐ Salvar como modelo da conta:** a partir daí a Fábrica faz **todas** as capas do dia nesse padrão, sozinha. Cada conta tem o seu.
+- **📂 Aplicar numa pasta inteira:** refaz as capas de um dia de postagens de uma vez.
+- **Outro desenho ou nicho:** escolhe a imagem de fundo da conta nova e o visual dela fica pronto para a Fábrica e a Esteira.
+
+<p align="center"><img src="vitrine/capa_kwai_x_estudio.jpg" alt="Capa que está no Kwai hoje e a capa feita pelo Estúdio" width="70%"><br>
+<sub>À esquerda, uma capa que está no Kwai hoje; à direita, a mesma cena feita pelo Estúdio de Capa.</sub></p>
 
 ---
 
@@ -52,7 +71,7 @@ C:\IA_TOONS_FABRICA\ENTRADA\<nome-da-conta>\
 PARA_POSTAR\<conta>\<data>\
    001_07h00_titulo-do-corte.mp4        o vídeo, já na ordem e no horário
    001_07h00_titulo-do-corte.txt        a legenda pronta, com hashtags
-   001_07h00_titulo-do-corte_capa.jpg   a capa
+   001_07h00_titulo-do-corte_capa.jpg   a capa, no modelo da conta
    AGENDA.csv                           a lista do dia, abre no Excel
 ```
 
@@ -79,7 +98,7 @@ PARA_POSTAR\<conta>\<data>\
 |---|---|
 | **Início** | Primeira versão: um corte por vez, escolhendo início e fim na mão. |
 | **Esteira inteligente** | Vários episódios em fila, transcrição, a "agência" escolhendo os melhores trechos e títulos, padrão Kwai Cut Toonmix e render mais estável. |
-| **Update Jasão (agora)** | Fábrica multi-conta com meta de 100/dia, agenda pronta para postar, perfis por conta, modo rápido, marca IATOONS com partículas e 11 testes novos. Também corrigimos um erro antigo: a esteira ignorava o perfil escolhido e sempre usava "toonmix". |
+| **Update Jasão (agora)** | Fábrica multi-conta com meta de 100/dia, agenda pronta para postar, **Estúdio de Capa** no padrão da agência, perfis por conta, modo rápido, marca IATOONS com partículas e 14 testes novos. Também corrigimos um erro antigo: a esteira ignorava o perfil escolhido e sempre usava "toonmix". |
 
 ---
 

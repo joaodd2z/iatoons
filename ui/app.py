@@ -38,6 +38,7 @@ class AppIAToons(ctk.CTk):
 
     ABAS = [
         ("🏭  Fábrica 100/dia", "fabrica"),
+        ("🖼️  Estúdio de Capa", "capa"),
         ("⚡  Esteira de Produção", "importar"),
         ("🎛️  Ajustes Audiovisuais", "ajustes"),
         ("🤖  Configurações de IA", "config_ia"),
@@ -192,6 +193,9 @@ class AppIAToons(ctk.CTk):
         if chave == "fabrica":
             from ui.tela_fabrica import TelaFabrica
             return TelaFabrica
+        if chave == "capa":
+            from ui.tela_capa import TelaCapa
+            return TelaCapa
         if chave == "importar":
             from ui.tela_importar import TelaImportar
             return TelaImportar

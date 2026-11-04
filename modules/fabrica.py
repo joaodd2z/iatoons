@@ -217,6 +217,18 @@ def legenda_post(conta: Conta, titulo: str) -> str:
     return f"{titulo.strip()}\n\n{conta.hashtags}".strip() + "\n"
 
 
+def _capa_do_modelo(conta: Conta, mp4: Path, titulo: str) -> bool:
+    """Conta com modelo salvo no Estúdio de Capa: a capa sai no padrão dela (regra da agência). False = sem modelo/erro."""
+    from modules import capa_estudio as CE
+    if not CE.tem_modelo(conta.id) or not mp4.is_file():
+        return False
+    try:
+        CE.gerar_capa(mp4, conta.perfil, CE.carregar_modelo(conta.id), titulo, mp4.with_name(mp4.stem + "_capa.jpg"))
+        return True
+    except (RuntimeError, OSError, ValueError):
+        return False
+
+
 def distribuir(cfg: ConfigFabrica, conta: Conta, *, inicio: date | None = None, dias: int = 1,
                copiar: bool = True) -> dict:
     """Monta PARA_POSTAR/<conta>/<data>/ com até posts_por_dia vídeos por dia, sem repetir corte já distribuído."""
@@ -253,7 +265,7 @@ def distribuir(cfg: ConfigFabrica, conta: Conta, *, inicio: date | None = None, 
             else:
                 shutil.move(str(c.arquivo), destino)
             (pasta_dia / f"{nome}.txt").write_text(legenda_post(conta, c.titulo), encoding="utf-8")
-            if c.capa:
+            if not _capa_do_modelo(conta, destino, c.titulo) and c.capa:
                 try:
                     shutil.copy2(c.capa, pasta_dia / f"{nome}_capa.jpg")
                 except OSError:
