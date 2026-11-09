@@ -412,6 +412,20 @@ class ContextoEpisodio:
         return len(self.planos_prontos)
 
     @property
+    def cortes_titulados_count(self) -> int:
+        from modules.titulos_v2 import titulo_pendente
+        total = 0
+        for p in self.planos:
+            t = (
+                getattr(p, "titulo_manual_confirmado", "")
+                or getattr(p, "titulo_escolhido", "")
+                or (p.titulos[0].texto if getattr(p, "titulos", None) else "")
+            ).strip()
+            if t and not titulo_pendente(t):
+                total += 1
+        return total
+
+    @property
     def cortes_exportados_count(self) -> int:
         return len(self.arquivos_exportados)
 

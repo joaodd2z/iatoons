@@ -23,7 +23,8 @@ from modules.agencia.pacote_chatgpt import (
 from modules.agencia.persistencia import salvar_lista_agencia
 from modules.agencia.timeline import OpcoesEdicao, construir_timeline
 from modules.titulos_v2 import STATUS_REVISAO_TITULO
-from modules.transcricao_gemini import obter_transcricao_episodio
+from pathlib import Path
+from modules.transcricao_gemini import formatar_transcricao_para_gemini, obter_transcricao_episodio
 
 
 ETAPAS_EDITORIAIS_ATIVAS = ("analise_agencia", "momentos_fortes", "hooks", "titulos")
@@ -355,7 +356,7 @@ def _sem_placeholder(texto: str) -> str:
         return ""
     if re.search(r"\[(?:Título principal|Texto curto|Alternativa|Segunda alternativa|Uma frase|título)[^\]]*\]", t, re.IGNORECASE):
         return ""
-    if re.search(r"<(?:título|titulo)>", t, re.IGNORECASE):
+    if re.search(r"<(?:título|titulo|seu\s+t[íi]tulo\s+aqui)[^>]*>", t, re.IGNORECASE):
         return ""
     return t
 
@@ -532,7 +533,7 @@ _SUBSTRINGS_DESCARTAR_LOTE = (
 _RE_PLACEHOLDERS_EXEMPLO = re.compile(
     r"\[(?:Título principal(?: recomendado)?|Texto curto(?: para a capa - opcional)?|"
     r"Alternativa(?: diferente - opcional)?|Segunda alternativa(?: - opcional)?|"
-    r"Uma frase(?: - opcional)?|título|titulo)[^\]]*\]|<(?:título|titulo)>|"
+    r"Uma frase(?: - opcional)?|título|titulo)[^\]]*\]|<(?:título|titulo|seu\s+t[íi]tulo\s+aqui)[^>]*>|"
     r"\[[^\]]*(?:recomendado|opcional|\.\.\.)[^\]]*\]",
     re.IGNORECASE,
 )
@@ -942,3 +943,461 @@ def aplicar_titulos_episodio(esteira: Any, ep_id: str, itens_titulos: list[Titul
             avisos.append(f"Aviso ao salvar estado da esteira: {erro}")
         esteira._emitir_evento("titulos_lote_aplicados", ep, "titulos", f"{aplicados} títulos aplicados em lote.")
     return aplicados, avisos
+
+
+# ─── LOTE GLOBAL MULTI-EPISÓDIO (.TXT E DISTRIBUIÇÃO AUTOMÁTICA) ─────────────
+
+CABECALHO_LOTE_GLOBAL_IA = """[INSTRUÇÕES GERAIS PARA A IA]
+Atue como um Especialista em Retenção de Vídeos Curtos (TikTok/Kwai).
+Abaixo, você receberá os dados de MÚLTIPLOS EPISÓDIOS. Cada episódio contém sua TRANSCRIÇÃO COMPLETA (para contexto) e seus CORTES (trechos exatos).
+Sua tarefa é gerar títulos altamente engajadores e virais para cada corte de cada episódio.
+
+REGRAS DE RESPOSTA (OBRIGATÓRIO MANTENHA ESTE FORMATO EXATO):
+[EPISÓDIO: NOME_DO_ARQUIVO.mp4]
+CORTE 1: <Seu Título Aqui>
+CORTE 2: <Seu Título Aqui>
+...
+
+=========================================
+[DADOS DOS EPISÓDIOS]"""
+
+_RE_EPISODIO_GLOBAL = re.compile(r"\[EPIS[ÓO]DIO:\s*(.+?)\]", re.IGNORECASE)
+_RE_EPISODIO_GLOBAL_FALLBACK = re.compile(
+    r"^(?:[*_#>`~\-•\s]*)\[?EPIS[ÓO]DIO\s*[:\-–—]\s*([^\n\]]+?)\]?\s*[*_#`]*$",
+    re.IGNORECASE,
+)
+_RE_CORTE_GLOBAL = re.compile(
+    r"^(?:(?:\*\*?)?(?:CORTE|CANDIDATO|CLIP|VÍDEO|VIDEO|PARTE)\s*#?\s*(\d+)\b\s*(?:\*\*?)?\s*[:\-–—\.\)]\s*(?:\*\*?)?)\s*(.+)$",
+    re.IGNORECASE,
+)
+_RE_CODIGO_EPISODIO = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
+
+
+@dataclass
+class ResultadoEpisodioGlobal:
+    nome_capturado: str
+    ep_id: str = ""
+    ep_nome: str = ""
+    itens: list[TituloCorteItem] = field(default_factory=list)
+    total_esperados: int = 0
+    avisos: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ResultadoParseLoteGlobal:
+    episodios: list[ResultadoEpisodioGlobal] = field(default_factory=list)
+    avisos: list[str] = field(default_factory=list)
+    total_episodios_encontrados: int = 0
+    total_episodios_vinculados: int = 0
+    total_titulos_encontrados: int = 0
+
+
+def formatar_cortes_episodio_lote(
+    ep: Any,
+    *,
+    transcricao: Any = None,
+    intro: Any = None,
+    opcoes: Optional[OpcoesEdicao] = None,
+) -> tuple[str, int]:
+    """Formata apenas os blocos de cortes de um episódio (sem o cabeçalho individual INSTRUCOES_ESTEIRA)."""
+    if not ep or not getattr(ep, "planos", None):
+        return "", 0
+
+    transc_ref = transcricao or getattr(ep, "transcricao", None) or obter_transcricao_episodio(ep)
+    intro_ref = intro or getattr(ep, "intro", None)
+    opcoes_raw = opcoes or getattr(ep, "opcoes_edicao", None) or OpcoesEdicao()
+    opcoes_ref = opcoes_raw.validar() if hasattr(opcoes_raw, "validar") else opcoes_raw
+
+    blocos_cortes: list[str] = []
+    for numero, plano in enumerate(ep.planos, 1):
+        timeline = None
+        trechos = []
+        if transc_ref:
+            try:
+                timeline = construir_timeline(plano, transc_ref, intro_ref, opcoes_ref)
+                trechos = timeline.trechos
+            except Exception:
+                timeline = None
+        duracao = timeline.duracao if timeline else (plano.fim - plano.inicio)
+
+        linhas = [
+            f"CORTE {numero} · ID: {plano.id or 'não disponível'}",
+            f"Resumo: {plano.descricao or plano.motivo_escolha or 'não disponível'}",
+            f"Duração final: {duracao:.2f}s",
+            f"Título atual: {plano.titulo or 'não disponível'}",
+            f"Texto da capa: {plano.titulo_capa or 'não disponível'}",
+            "ORDEM FINAL DA MONTAGEM:",
+        ]
+        if transc_ref and trechos:
+            for i, trecho in enumerate(trechos, 1):
+                papel = PAPEIS.get(trecho.funcao, trecho.funcao.upper() if trecho.funcao else "HISTÓRIA")
+                falas = _fala_intervalo(transc_ref, trecho.inicio, trecho.fim)
+                linhas.append(
+                    f"{i}. Segmento original {_segundos(trecho.inicio)}–{_segundos(trecho.fim)}s — {papel}\n"
+                    f"   Falas: {falas}"
+                )
+            linhas.extend(_estrutura(plano, timeline))
+        else:
+            falas = _fala_intervalo(transc_ref, plano.inicio, plano.fim) if transc_ref else "não disponível"
+            linhas.append(
+                f"1. Intervalo original {_segundos(plano.inicio)}–{_segundos(plano.fim)}s\n"
+                f"   Falas: {falas}"
+            )
+        blocos_cortes.append("\n".join(linhas))
+
+    return "\n\n".join(blocos_cortes), len(ep.planos)
+
+
+def construir_lote_global_txt(episodios: list[Any]) -> tuple[str, int, int, list[str]]:
+    """
+    Constrói o conteúdo completo do arquivo .txt de Lote Global (Transcrições + Cortes + Prompt IA)
+    para todos os episódios da esteira.
+    Retorna: (conteudo_txt, qtd_episodios_incluidos, total_cortes_incluidos, avisos)
+    """
+    avisos: list[str] = []
+    if not episodios:
+        return "", 0, 0, ["Nenhum episódio carregado na esteira."]
+
+    partes: list[str] = [CABECALHO_LOTE_GLOBAL_IA]
+    qtd_episodios = 0
+    total_cortes = 0
+
+    for ep in episodios:
+        nome_do_arquivo = (
+            getattr(ep, "nome", "")
+            or (Path(getattr(ep, "video_path", "")).name if getattr(ep, "video_path", "") else "")
+            or f"episodio_{getattr(ep, 'id', qtd_episodios + 1)}.mp4"
+        )
+        transcricao = getattr(ep, "transcricao", None) or obter_transcricao_episodio(ep)
+        if transcricao and getattr(transcricao, "segmentos", None):
+            try:
+                texto_da_transcricao = formatar_transcricao_para_gemini(
+                    transcricao, nome_episodio=nome_do_arquivo
+                )
+            except Exception as erro:
+                texto_da_transcricao = f"(Erro ao formatar transcrição: {erro})"
+                avisos.append(f"'{nome_do_arquivo}': falha ao formatar transcrição ({erro}).")
+        else:
+            texto_da_transcricao = "(Transcrição ainda não disponível para este episódio)"
+            avisos.append(f"'{nome_do_arquivo}': transcrição ainda não disponível.")
+
+        texto_dos_cortes, qtd_cortes_ep = formatar_cortes_episodio_lote(ep, transcricao=transcricao)
+        if not texto_dos_cortes:
+            texto_dos_cortes = "(Nenhum corte gerado para este episódio até o momento)"
+            avisos.append(f"'{nome_do_arquivo}': nenhum corte disponível.")
+
+        bloco_ep = (
+            f"[EPISÓDIO: {nome_do_arquivo}]\n"
+            f"--- TRANSCRIÇÃO ---\n"
+            f"{texto_da_transcricao}\n\n"
+            f"--- CORTES ---\n"
+            f"{texto_dos_cortes}\n\n"
+            f"========================================="
+        )
+        partes.append(bloco_ep)
+        qtd_episodios += 1
+        total_cortes += qtd_cortes_ep
+
+    return "\n".join(partes) + "\n", qtd_episodios, total_cortes, avisos
+
+
+def exportar_lote_global_arquivo(esteira: Any, caminho_arquivo: str | Path) -> tuple[int, int, list[str]]:
+    """Gera e salva em disco o arquivo .txt do lote global de todos os episódios da esteira."""
+    episodios = esteira.listar_episodios() if hasattr(esteira, "listar_episodios") else list(esteira or [])
+    conteudo, qtd_ep, total_cortes, avisos = construir_lote_global_txt(episodios)
+    if not conteudo or qtd_ep == 0:
+        return 0, 0, avisos or ["Nenhum episódio disponível para exportar."]
+
+    destino = Path(caminho_arquivo)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(conteudo, encoding="utf-8")
+    return qtd_ep, total_cortes, avisos
+
+
+def _normalizar_nome_episodio_match(nome: str) -> str:
+    """Normaliza o nome do arquivo de episódio para comparação resiliente."""
+    if not nome:
+        return ""
+    s = str(nome).strip().strip("[]()*_\"'` ").strip()
+    s = Path(s).name.strip()
+    return " ".join(s.lower().split())
+
+
+def _eh_nome_episodio_placeholder(nome: str) -> bool:
+    n = _normalizar_nome_episodio_match(nome)
+    if not n:
+        return True
+    if n in (
+        "nome_do_arquivo.mp4",
+        "nome_do_arquivo",
+        "{nome_do_arquivo}",
+        "<nome_do_arquivo>",
+        "<nome_do_arquivo.mp4>",
+        "exemplo.mp4",
+    ):
+        return True
+    if "nome_do_arquivo" in n or "{nome" in n:
+        return True
+    return False
+
+
+def localizar_episodio_por_nome(nome_capturado: str, episodios: list[Any]) -> Optional[Any]:
+    """
+    Localiza o objeto ContextoEpisodio correspondente na lista da esteira pelo nome do arquivo.
+    Tenta em ordem:
+    1. Match exato case-insensitive pelo nome completo (com extensão)
+    2. Match exato pelo stem (sem extensão .mp4/.mkv/.mov)
+    3. Match por inclusão/sufixo ou código SxxExx único na esteira
+    """
+    if not nome_capturado or not episodios:
+        return None
+    alvo_norm = _normalizar_nome_episodio_match(nome_capturado)
+    alvo_stem = Path(alvo_norm).stem.strip()
+    if not alvo_norm:
+        return None
+
+    # 1. Match exato pelo nome do arquivo
+    for ep in episodios:
+        ep_nome = _normalizar_nome_episodio_match(
+            getattr(ep, "nome", "") or Path(getattr(ep, "video_path", "")).name
+        )
+        if ep_nome == alvo_norm:
+            return ep
+
+    # 2. Match exato pelo stem (sem extensão)
+    for ep in episodios:
+        ep_nome = _normalizar_nome_episodio_match(
+            getattr(ep, "nome", "") or Path(getattr(ep, "video_path", "")).name
+        )
+        if Path(ep_nome).stem.strip() == alvo_stem and alvo_stem:
+            return ep
+
+    # 3. Match por código SxxExx se for único entre os episódios carregados
+    m_cod = _RE_CODIGO_EPISODIO.search(alvo_norm)
+    if m_cod:
+        codigo = m_cod.group(0).lower()
+        candidatos_cod = [
+            ep for ep in episodios
+            if codigo in _normalizar_nome_episodio_match(
+                getattr(ep, "nome", "") or Path(getattr(ep, "video_path", "")).name
+            )
+        ]
+        if len(candidatos_cod) == 1:
+            return candidatos_cod[0]
+
+    # 4. Match por substring não-ambíguo
+    candidatos_sub = []
+    for ep in episodios:
+        ep_nome = _normalizar_nome_episodio_match(
+            getattr(ep, "nome", "") or Path(getattr(ep, "video_path", "")).name
+        )
+        ep_stem = Path(ep_nome).stem.strip()
+        if (alvo_stem and ep_stem and (alvo_stem in ep_stem or ep_stem in alvo_stem)):
+            candidatos_sub.append(ep)
+    if len(candidatos_sub) == 1:
+        return candidatos_sub[0]
+
+    return None
+
+
+def parser_titulos_lote_global(
+    texto: str,
+    episodios_esteira: Optional[list[Any]] = None,
+) -> ResultadoParseLoteGlobal:
+    """
+    Varre o texto global colado buscando:
+    1. Padrão de episódio: r"\\[EPISÓDIO:\\s*(.+?)\\]" (ou fallback EPISÓDIO: <nome>)
+    2. Linhas subsequentes com padrão de cortes: r"^(?:(?:\\*\\*?)?CORTE\\s*\\d+[:\\-]\\s*(?:\\*\\*?)?)(.+)"
+    Associa cada bloco ao respectivo episódio da esteira pelo nome do arquivo.
+    """
+    resultado = ResultadoParseLoteGlobal()
+    texto_norm = _normalizar_texto_clipboard(texto)
+    if not texto_norm:
+        resultado.avisos.append(
+            "Formato inválido: Cole a resposta da IA contendo [EPISÓDIO: nome.mp4] e CORTE 1: ..."
+        )
+        return resultado
+
+    # Quebra caso o clipboard tenha colado "[EPISÓDIO: ...]" e "CORTE 1:" na mesma linha
+    texto_norm = re.sub(r"(\[EPIS[ÓO]DIO:\s*[^\]]+\])\s*(?=\S)", r"\1\n", texto_norm, flags=re.IGNORECASE)
+
+    linhas = texto_norm.splitlines()
+    ordem_chaves: list[str] = []
+    mapa_blocos: dict[str, dict[int, TituloCorteItem]] = {}
+    nomes_originais: dict[str, str] = {}
+
+    chave_ep_atual: Optional[str] = None
+    item_corte_atual: Optional[TituloCorteItem] = None
+
+    for ln_raw in linhas:
+        ln_strip = ln_raw.strip()
+        if not ln_strip:
+            continue
+
+        # 1. Verifica marcador de episódio: r"\[EPISÓDIO:\s*(.+?)\]"
+        m_ep = _RE_EPISODIO_GLOBAL.search(ln_strip)
+        if not m_ep:
+            m_ep = _RE_EPISODIO_GLOBAL_FALLBACK.match(ln_strip)
+
+        if m_ep:
+            nome_cap = m_ep.group(1).strip().strip("*_#`\"' ").strip()
+            item_corte_atual = None
+            if _eh_nome_episodio_placeholder(nome_cap):
+                chave_ep_atual = None
+                continue
+            chave = _normalizar_nome_episodio_match(nome_cap)
+            chave_ep_atual = chave
+            if chave not in mapa_blocos:
+                ordem_chaves.append(chave)
+                mapa_blocos[chave] = {}
+                nomes_originais[chave] = nome_cap
+            continue
+
+        if chave_ep_atual is None:
+            continue
+
+        # 2. Dentro de um episódio ativo, verifica linha de corte:
+        # r"^(?:(?:\*\*?)?CORTE\s*\d+[:\-]\s*(?:\*\*?)?)(.+)"
+        ln_limpa = _limpar_prefixo_linha(ln_strip)
+        m_corte = _RE_CORTE_GLOBAL.match(ln_limpa)
+        if m_corte:
+            indice = int(m_corte.group(1))
+            resto = m_corte.group(2).strip().strip("*").strip()
+            eh_id = bool(_RE_ID_LINHA.match(resto) or re.match(r"^(?:·|-|–|—|\s)*ID\s*:", resto, re.IGNORECASE))
+            if eh_id or _eh_titulo_placeholder_ou_id(resto):
+                item_corte_atual = None
+                continue
+            titulo_limpo = _sem_placeholder(limpar_texto_titulo(resto))
+            if not titulo_limpo or _eh_titulo_placeholder_ou_id(titulo_limpo):
+                item_corte_atual = None
+                continue
+            novo_item = TituloCorteItem(indice=indice, titulo=titulo_limpo)
+            mapa_blocos[chave_ep_atual][indice] = novo_item
+            item_corte_atual = novo_item
+            continue
+
+        # Suporte opcional para CAPA / ALT / JUSTIFICATIVA abaixo de CORTE N
+        if item_corte_atual is not None:
+            if (m_c := _RE_CAPA.match(ln_strip)):
+                c_val = _sem_placeholder(limpar_texto_titulo(m_c.group(1)))
+                if c_val and not _eh_titulo_placeholder_ou_id(c_val):
+                    item_corte_atual.titulo_capa = c_val
+                continue
+            if (m_a := _RE_ALT.match(ln_strip)):
+                a_val = _sem_placeholder(limpar_texto_titulo(m_a.group(1)))
+                if a_val and not _eh_titulo_placeholder_ou_id(a_val) and a_val not in item_corte_atual.alternativas:
+                    item_corte_atual.alternativas.append(a_val)
+                continue
+            if (m_j := _RE_JUST.match(ln_strip)):
+                j_val = _sem_placeholder(limpar_texto_titulo(m_j.group(1)))
+                if j_val and not _eh_titulo_placeholder_ou_id(j_val):
+                    item_corte_atual.justificativa = j_val
+                continue
+
+    lista_ep_esteira = list(episodios_esteira or [])
+    for chave in ordem_chaves:
+        cortes_dict = mapa_blocos.get(chave, {})
+        if not cortes_dict:
+            continue
+        nome_cap = nomes_originais[chave]
+        ep_match = localizar_episodio_por_nome(nome_cap, lista_ep_esteira) if lista_ep_esteira else None
+        total_esp = len(ep_match.planos) if (ep_match and getattr(ep_match, "planos", None)) else 0
+
+        avisos_ep: list[str] = []
+        if total_esp > 0:
+            excedentes = [idx for idx in list(cortes_dict.keys()) if idx > total_esp]
+            for idx in excedentes:
+                del cortes_dict[idx]
+            if excedentes:
+                avisos_ep.append(
+                    f"{len(excedentes)} título(s) acima do limite de {total_esp} corte(s) foram ignorados."
+                )
+
+        itens_ordenados = [cortes_dict[k] for k in sorted(cortes_dict)]
+        if not itens_ordenados:
+            continue
+
+        if ep_match is None and lista_ep_esteira:
+            avisos_ep.append(f"Episódio '{nome_cap}' não encontrado na fila atual da esteira.")
+
+        res_ep = ResultadoEpisodioGlobal(
+            nome_capturado=nome_cap,
+            ep_id=getattr(ep_match, "id", "") if ep_match else "",
+            ep_nome=getattr(ep_match, "nome", "") if ep_match else "",
+            itens=itens_ordenados,
+            total_esperados=total_esp,
+            avisos=avisos_ep,
+        )
+        resultado.episodios.append(res_ep)
+
+    resultado.total_episodios_encontrados = len(resultado.episodios)
+    resultado.total_episodios_vinculados = sum(1 for e in resultado.episodios if e.ep_id)
+    resultado.total_titulos_encontrados = sum(len(e.itens) for e in resultado.episodios)
+
+    if resultado.total_titulos_encontrados == 0:
+        resultado.avisos.append(
+            "Nenhum bloco válido no formato [EPISÓDIO: nome.mp4] + CORTE 1: Título foi encontrado."
+        )
+    else:
+        nao_vinculados = [e.nome_capturado for e in resultado.episodios if not e.ep_id and lista_ep_esteira]
+        if nao_vinculados:
+            resultado.avisos.append(
+                f"{len(nao_vinculados)} episódio(s) do texto não foram localizados na esteira: "
+                + ", ".join(nao_vinculados[:5])
+            )
+
+    return resultado
+
+
+def aplicar_titulos_lote_global(
+    esteira: Any,
+    texto_ou_resultado: str | ResultadoParseLoteGlobal,
+) -> tuple[int, int, list[str], list[str]]:
+    """
+    Distribui os títulos globais diretamente para cada episódio correspondente na esteira.
+    Opera sobre a lista central de instâncias de episódios da esteira sem Signal Leak.
+    Retorna: (qtd_episodios_atualizados, total_titulos_aplicados, ids_episodios_atualizados, avisos)
+    """
+    episodios_esteira = esteira.listar_episodios() if hasattr(esteira, "listar_episodios") else []
+    if isinstance(texto_ou_resultado, str):
+        res_global = parser_titulos_lote_global(texto_ou_resultado, episodios_esteira=episodios_esteira)
+    else:
+        res_global = texto_ou_resultado
+
+    if not res_global or not res_global.episodios:
+        return 0, 0, [], (res_global.avisos if res_global else ["Nenhum título global para aplicar."])
+
+    avisos_gerais: list[str] = list(res_global.avisos)
+    qtd_episodios_atualizados = 0
+    total_titulos_aplicados = 0
+    ids_atualizados: list[str] = []
+
+    for ep_res in res_global.episodios:
+        ep_id = ep_res.ep_id
+        if not ep_id and episodios_esteira:
+            ep_match = localizar_episodio_por_nome(ep_res.nome_capturado, episodios_esteira)
+            if ep_match:
+                ep_id = ep_match.id
+        if not ep_id:
+            continue
+
+        aplicados, avisos_ep = aplicar_titulos_episodio(esteira, ep_id, ep_res.itens)
+        if aplicados > 0:
+            ep_obj = esteira.obter_episodio(ep_id)
+            if ep_obj is not None:
+                with esteira._lock:
+                    ep_obj.mensagem_status = f"{aplicados} cortes titulados — pronto para aprovar e exportar"
+            qtd_episodios_atualizados += 1
+            total_titulos_aplicados += aplicados
+            if ep_id not in ids_atualizados:
+                ids_atualizados.append(ep_id)
+        for av in avisos_ep:
+            avisos_gerais.append(f"[{ep_res.ep_nome or ep_res.nome_capturado}] {av}")
+
+    if qtd_episodios_atualizados > 0:
+        try:
+            esteira.salvar_estado()
+        except Exception as erro:
+            avisos_gerais.append(f"Aviso ao salvar estado da esteira: {erro}")
+
+    return qtd_episodios_atualizados, total_titulos_aplicados, ids_atualizados, avisos_gerais

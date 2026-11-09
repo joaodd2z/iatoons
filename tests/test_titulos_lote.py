@@ -783,5 +783,76 @@ CAPA: Que Queda!
         self.assertIn("perfil=toonmix", cmd_str)
 
 
+    def test_exportar_lote_global_txt_estrutura_exata(self):
+        from modules.titulos_lote import exportar_lote_global_arquivo
+
+        esteira = EsteiraProducao(caminho_persistencia=self.root / "estado_global.json")
+        ep1, _ = self._episodio(num_cortes=2, ep_id="Uma Familia da Pesada S11E22", esteira=esteira)
+        ep2, _ = self._episodio(num_cortes=3, ep_id="Uma Familia da Pesada S12E01", esteira=esteira)
+
+        arquivo_txt = self.root / "lote_global_ia.txt"
+        qtd_ep, total_cortes, avisos = exportar_lote_global_arquivo(esteira, arquivo_txt)
+
+        self.assertEqual(qtd_ep, 2)
+        self.assertEqual(total_cortes, 5)
+        self.assertEqual(avisos, [])
+        self.assertTrue(arquivo_txt.is_file())
+
+        conteudo = arquivo_txt.read_text(encoding="utf-8")
+        self.assertIn("[INSTRUÇÕES GERAIS PARA A IA]", conteudo)
+        self.assertIn("REGRAS DE RESPOSTA (OBRIGATÓRIO MANTENHA ESTE FORMATO EXATO):", conteudo)
+        self.assertIn("[EPISÓDIO: NOME_DO_ARQUIVO.mp4]", conteudo)
+        self.assertIn("[DADOS DOS EPISÓDIOS]", conteudo)
+        self.assertIn(f"[EPISÓDIO: {ep1.nome}]\n--- TRANSCRIÇÃO ---", conteudo)
+        self.assertIn(f"[EPISÓDIO: {ep2.nome}]\n--- TRANSCRIÇÃO ---", conteudo)
+        self.assertIn("--- CORTES ---", conteudo)
+        self.assertIn("=========================================", conteudo)
+
+    def test_parser_e_distribuicao_lote_global_multi_episodio(self):
+        from modules.titulos_lote import (
+            CABECALHO_LOTE_GLOBAL_IA,
+            aplicar_titulos_lote_global,
+            parser_titulos_lote_global,
+        )
+
+        esteira = EsteiraProducao(caminho_persistencia=self.root / "estado_global_paste.json")
+        ep1, _ = self._episodio(num_cortes=2, ep_id="Uma Familia da Pesada S11E22", esteira=esteira)
+        ep2, _ = self._episodio(num_cortes=3, ep_id="Uma Familia da Pesada S12E01", esteira=esteira)
+
+        # Inclui cabeçalho de instruções de propósito para garantir que placeholders sejam ignorados
+        resposta_ia = (
+            f"{CABECALHO_LOTE_GLOBAL_IA}\n\n"
+            f"[EPISÓDIO: {ep1.nome}]\n"
+            "CORTE 1: **PETER COMPRA UM TANQUE DE GUERRA NO LEILÃO**\n"
+            "CORTE 2: LOIS DESCOBRE O ESCONDERIJO SECRETO NO QUINTAL\n\n"
+            f"[EPISÓDIO: {ep2.nome}]\n"
+            "**CORTE 1:** STEWIE CRIA UM CLONE QUE DÁ TUDO ERRADO\n"
+            "**CORTE 2 -** BRIAN TENTA PASSAR NO EXAME DA FACULDADE\n"
+            "CORTE 3: MEG REVELA O SEGREDO NA FRENTE DA CIDADE INTEIRA\n"
+        )
+
+        res = parser_titulos_lote_global(resposta_ia, episodios_esteira=esteira.listar_episodios())
+        self.assertEqual(res.total_episodios_encontrados, 2)
+        self.assertEqual(res.total_episodios_vinculados, 2)
+        self.assertEqual(res.total_titulos_encontrados, 5)
+
+        qtd_ep, total_titulos, ids_atualizados, avisos = aplicar_titulos_lote_global(esteira, resposta_ia)
+        self.assertEqual(qtd_ep, 2)
+        self.assertEqual(total_titulos, 5)
+        self.assertEqual(ids_atualizados, [ep1.id, ep2.id])
+        self.assertEqual(avisos, [])
+
+        self.assertEqual(ep1.planos[0].titulo_escolhido, "PETER COMPRA UM TANQUE DE GUERRA NO LEILÃO")
+        self.assertEqual(ep1.planos[1].titulo_escolhido, "LOIS DESCOBRE O ESCONDERIJO SECRETO NO QUINTAL")
+        self.assertEqual(ep1.cortes_titulados_count, 2)
+        self.assertIn("2 cortes titulados", ep1.mensagem_status)
+
+        self.assertEqual(ep2.planos[0].titulo_escolhido, "STEWIE CRIA UM CLONE QUE DÁ TUDO ERRADO")
+        self.assertEqual(ep2.planos[1].titulo_escolhido, "BRIAN TENTA PASSAR NO EXAME DA FACULDADE")
+        self.assertEqual(ep2.planos[2].titulo_escolhido, "MEG REVELA O SEGREDO NA FRENTE DA CIDADE INTEIRA")
+        self.assertEqual(ep2.cortes_titulados_count, 3)
+        self.assertIn("3 cortes titulados", ep2.mensagem_status)
+
+
 if __name__ == "__main__":
     unittest.main()

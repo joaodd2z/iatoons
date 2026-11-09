@@ -25,6 +25,10 @@ from modules.titulos_lote import (
     ler_clipboard_sistema,
     parser_titulos_lote,
     sanitizar_texto_lote,
+    ResultadoParseLoteGlobal,
+    aplicar_titulos_lote_global,
+    exportar_lote_global_arquivo,
+    parser_titulos_lote_global,
 )
 from ui.app import (
     COR_AMARELO,
@@ -48,6 +52,7 @@ class TelaImportar(ctk.CTkFrame):
         self._eventos_esteira: queue.Queue = queue.Queue()
         self._cards_episodios: dict[str, dict] = {}
         self._modal_colar_titulos: ModalColarTitulos | None = None
+        self._modal_colar_lote_global: ModalColarTitulosGlobais | None = None
 
         if not self.esteira.listar_episodios():
             self.esteira.carregar_estado()
@@ -246,6 +251,55 @@ class TelaImportar(ctk.CTkFrame):
             text_color=COR_CINZA_CLARO,
         )
         self.lbl_resumo_esteira.pack(side="right", padx=12)
+
+        # ─── SUPER-BOTÕES DE LOTE GLOBAL (FORA DOS CARDS INDIVIDUAIS) ────────
+        barra_lote_global = ctk.CTkFrame(
+            card_esteira,
+            fg_color="#1D1135",
+            border_width=1,
+            border_color="#3E2661",
+            corner_radius=8,
+        )
+        barra_lote_global.pack(fill="x", padx=14, pady=(0, 10), ipady=6)
+
+        ctk.CTkLabel(
+            barra_lote_global,
+            text="🌐 Lote Global IA:",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COR_BRANCO,
+        ).pack(side="left", padx=(12, 8))
+
+        self.btn_exportar_lote_global = ctk.CTkButton(
+            barra_lote_global,
+            text="📄 Exportar Tudo para IA - .txt",
+            width=235,
+            height=34,
+            fg_color="#6C3483",
+            hover_color=COR_ROXO_CLARO,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._exportar_lote_global_txt,
+        )
+        self.btn_exportar_lote_global.pack(side="left", padx=6)
+
+        self.btn_colar_lote_global = ctk.CTkButton(
+            barra_lote_global,
+            text="📥 Colar Títulos Globais",
+            width=210,
+            height=34,
+            fg_color="#00A86B",
+            hover_color="#008f5a",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._abrir_modal_colar_lote_global,
+        )
+        self.btn_colar_lote_global.pack(side="left", padx=6)
+
+        self.lbl_status_lote_global = ctk.CTkLabel(
+            barra_lote_global,
+            text="Exporte todas as transcrições/cortes em 1 arquivo .txt e cole os títulos de todos os episódios de uma vez.",
+            font=ctk.CTkFont(size=12),
+            text_color=COR_CINZA_CLARO,
+        )
+        self.lbl_status_lote_global.pack(side="right", padx=12)
 
         self.lista_episodios_frame = ctk.CTkFrame(card_esteira, fg_color="#120920", corner_radius=8)
         self.lista_episodios_frame.pack(fill="both", expand=True, padx=14, pady=(0, 8))
@@ -489,6 +543,89 @@ class TelaImportar(ctk.CTkFrame):
             self._modal_colar_titulos = None
 
         self._modal_colar_titulos = ModalColarTitulos(self, ep, self.esteira)
+
+    def _exportar_lote_global_txt(self):
+        """Exporta o contexto completo de todos os episódios (Transcrições + Cortes + Prompt IA) para um arquivo .txt."""
+        episodios = self.esteira.listar_episodios()
+        if not episodios:
+            self.app.mostrar_aviso(
+                "Exportar Tudo para IA - .txt",
+                "Nenhum episódio carregado na esteira.\n\n"
+                "Adicione episódios à esteira antes de exportar o arquivo .txt global.",
+            )
+            return
+
+        pasta_inicial = self.app.estado.get("pasta_export") or str(Path(__file__).parent.parent / "exportados")
+        caminho = filedialog.asksaveasfilename(
+            title="Salvar Contexto Completo para IA (.txt)",
+            initialdir=pasta_inicial,
+            initialfile="lote_global_episodios_ia.txt",
+            defaultextension=".txt",
+            filetypes=[
+                ("Arquivo de Texto (.txt)", "*.txt"),
+                ("Todos os Arquivos", "*.*"),
+            ],
+        )
+        if not caminho:
+            return
+
+        try:
+            qtd_ep, total_cortes, avisos = exportar_lote_global_arquivo(self.esteira, caminho)
+        except Exception as erro:
+            self.app.mostrar_erro(
+                "Exportar Tudo para IA - .txt",
+                f"Não foi possível salvar o arquivo .txt:\n{erro}",
+            )
+            return
+
+        if qtd_ep == 0:
+            self.app.mostrar_aviso(
+                "Exportar Tudo para IA - .txt",
+                "\n".join(avisos) or "Nenhum dado disponível para exportar.",
+            )
+            return
+
+        if hasattr(self, "lbl_status_lote_global"):
+            try:
+                self.lbl_status_lote_global.configure(
+                    text=f"✅ Exportado: {Path(caminho).name} ({qtd_ep} episódio(s), {total_cortes} corte(s))",
+                    text_color=COR_VERDE,
+                )
+            except tk.TclError:
+                pass
+
+        msg = (
+            f"✅ Lote Global exportado com sucesso!\n\n"
+            f"Arquivo: {caminho}\n"
+            f"Episódios incluídos: {qtd_ep}\n"
+            f"Total de cortes: {total_cortes}\n\n"
+            "Envie este arquivo .txt para a IA (ChatGPT/Gemini/Claude), copie a resposta gerada e clique em '📥 Colar Títulos Globais'."
+        )
+        if avisos:
+            msg += "\n\nObservações:\n• " + "\n• ".join(avisos[:8])
+        self.app.mostrar_info("Exportar Tudo para IA - .txt", msg)
+
+    def _abrir_modal_colar_lote_global(self):
+        """Abre o Modal Global para colar e distribuir automaticamente os títulos de todos os episódios."""
+        episodios = self.esteira.listar_episodios()
+        if not episodios:
+            self.app.mostrar_aviso(
+                "Colar Títulos Globais",
+                "Nenhum episódio carregado na esteira.\n\n"
+                "Adicione episódios à esteira antes de colar os títulos globais.",
+            )
+            return
+
+        modal_anterior = getattr(self, "_modal_colar_lote_global", None)
+        if modal_anterior is not None:
+            try:
+                if modal_anterior.winfo_exists():
+                    modal_anterior.destroy()
+            except Exception:
+                pass
+            self._modal_colar_lote_global = None
+
+        self._modal_colar_lote_global = ModalColarTitulosGlobais(self, self.esteira)
 
     def _aprovar_todos_e_exportar(self, ep_id: str):
         """Aprova todos os cortes com título do episódio e dispara a renderização na esteira."""
@@ -818,7 +955,10 @@ class TelaImportar(ctk.CTkFrame):
             text_color=COR_VERMELHO if ep.estado == "erro" else COR_CINZA_CLARO,
         )
         widgets["lbl_cortes"].configure(
-            text=f"Cortes: {ep.cortes_preparados_count} preparados · {ep.cortes_exportados_count} exportados"
+            text=(
+                f"{getattr(ep, 'cortes_titulados_count', 0)}/{len(ep.planos)} cortes titulados · "
+                f"Cortes: {ep.cortes_preparados_count} preparados · {ep.cortes_exportados_count} exportados"
+            )
         )
 
         em_exec = ep.estado == "em_execucao"
@@ -1147,6 +1287,326 @@ class ModalColarTitulos(ctk.CTkToplevel):
         if avisos:
             msg += "\n\nObservações:\n• " + "\n• ".join(avisos)
         tela.app.mostrar_info("Colar títulos em lote", msg)
+
+    def destroy(self):
+        if self._after_analise is not None:
+            try:
+                self.after_cancel(self._after_analise)
+            except tk.TclError:
+                pass
+            self._after_analise = None
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        super().destroy()
+
+
+
+class ModalColarTitulosGlobais(ctk.CTkToplevel):
+    """Modal Global para colar a resposta multi-episódio da IA e distribuir títulos automaticamente."""
+
+    def __init__(self, tela: "TelaImportar", esteira: EsteiraProducao):
+        super().__init__(tela)
+        self.tela = tela
+        self.esteira = esteira
+        self.resultado: ResultadoParseLoteGlobal | None = None
+        self._after_analise = None
+
+        self.title("Colar Títulos Globais — Distribuição Automática Multi-Episódio")
+        self.geometry("860x700")
+        self.minsize(720, 540)
+        self.transient(tela.winfo_toplevel())
+        self._construir()
+        self.after(50, self._focar)
+
+    def _focar(self):
+        try:
+            self.grab_set()
+            self.txt.focus_set()
+        except tk.TclError:
+            pass
+
+    def _construir(self):
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        episodios = self.esteira.listar_episodios()
+        ctk.CTkLabel(
+            self,
+            text=f"🌐 Colar Títulos Globais — {len(episodios)} episódio(s) na esteira",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COR_BRANCO,
+            anchor="w",
+        ).grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 2))
+
+        ctk.CTkLabel(
+            self,
+            text=(
+                "Cole abaixo a resposta inteira gerada pela IA para todos os episódios.\n"
+                "Formato esperado: [EPISÓDIO: NOME_DO_ARQUIVO.mp4] seguido de CORTE 1: <Título>, CORTE 2: <Título>..."
+            ),
+            font=ctk.CTkFont(size=12),
+            text_color=COR_CINZA_CLARO,
+            anchor="w",
+            justify="left",
+            wraplength=820,
+        ).grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 6))
+
+        self.txt = ctk.CTkTextbox(
+            self,
+            height=200,
+            font=ctk.CTkFont(size=12),
+            border_width=1,
+            border_color="#3E2661",
+        )
+        self.txt.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 6))
+        self.txt.bind("<KeyRelease>", lambda _e: self._agendar_analise())
+        alvos_paste = [self.txt]
+        if hasattr(self.txt, "_textbox") and self.txt._textbox is not self.txt:
+            alvos_paste.append(self.txt._textbox)
+        for alvo in alvos_paste:
+            alvo.bind("<<Paste>>", self._ao_colar_evento)
+            alvo.bind("<Control-v>", self._ao_colar_evento)
+            alvo.bind("<Control-V>", self._ao_colar_evento)
+
+        self.frame_previa = ctk.CTkScrollableFrame(
+            self, label_text="Prévia de Distribuição Global: Episódio → Cortes Titulados"
+        )
+        self.frame_previa.grid(row=3, column=0, sticky="nsew", padx=16, pady=(0, 6))
+
+        self.lbl_info = ctk.CTkLabel(
+            self,
+            text="Aguardando colagem da resposta global da IA…",
+            font=ctk.CTkFont(size=12),
+            text_color=COR_CINZA_CLARO,
+            anchor="w",
+            justify="left",
+            wraplength=820,
+        )
+        self.lbl_info.grid(row=4, column=0, sticky="ew", padx=16)
+
+        rodape = ctk.CTkFrame(self, fg_color="transparent")
+        rodape.grid(row=5, column=0, sticky="ew", padx=16, pady=(6, 14))
+
+        ctk.CTkButton(
+            rodape,
+            text="Cancelar",
+            width=100,
+            fg_color="#3E2661",
+            command=self.destroy,
+        ).pack(side="right", padx=(6, 0))
+
+        self.btn_aplicar_exportar = ctk.CTkButton(
+            rodape,
+            text="🚀 Distribuir e Exportar Todos",
+            width=210,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#00A86B",
+            hover_color="#008f5a",
+            state="disabled",
+            command=self._aplicar_e_exportar_global,
+        )
+        self.btn_aplicar_exportar.pack(side="right", padx=(6, 0))
+
+        self.btn_aplicar = ctk.CTkButton(
+            rodape,
+            text="💾 Distribuir Títulos nos Cards",
+            width=200,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color=COR_VERDE,
+            hover_color="#2b8a4e",
+            state="disabled",
+            command=self._aplicar_global,
+        )
+        self.btn_aplicar.pack(side="right")
+
+        ctk.CTkButton(
+            rodape,
+            text="📋 Colar da área de transferência",
+            width=220,
+            fg_color="#3E2661",
+            hover_color="#523280",
+            command=self._colar_clipboard,
+        ).pack(side="left")
+
+    def _ao_colar_evento(self, _event=None):
+        agora = time.time()
+        if agora - getattr(self, "_ultimo_paste_ts", 0.0) < 0.05:
+            return "break"
+        self._ultimo_paste_ts = agora
+        self._colar_clipboard()
+        return "break"
+
+    def _colar_clipboard(self):
+        texto_bruto = ler_clipboard_sistema(self)
+        if not texto_bruto or not str(texto_bruto).strip():
+            return
+        self.txt.delete("1.0", "end")
+        self.txt.insert("1.0", str(texto_bruto).strip())
+        self._analisar()
+
+    def _agendar_analise(self):
+        if self._after_analise is not None:
+            try:
+                self.after_cancel(self._after_analise)
+            except tk.TclError:
+                pass
+        self._after_analise = self.after(250, self._analisar)
+
+    def _analisar(self):
+        self._after_analise = None
+        if not self.winfo_exists():
+            return
+        texto = self.txt.get("1.0", "end").strip()
+        for filho in self.frame_previa.winfo_children():
+            filho.destroy()
+        if not texto:
+            self.resultado = None
+            self.btn_aplicar.configure(state="disabled")
+            self.btn_aplicar_exportar.configure(state="disabled")
+            self.lbl_info.configure(text="Aguardando colagem da resposta global da IA…", text_color=COR_CINZA_CLARO)
+            return
+
+        episodios_esteira = self.esteira.listar_episodios()
+        res = parser_titulos_lote_global(texto, episodios_esteira=episodios_esteira)
+        self.resultado = res
+
+        if res.total_titulos_encontrados == 0:
+            self.btn_aplicar.configure(state="disabled")
+            self.btn_aplicar_exportar.configure(state="disabled")
+            self.lbl_info.configure(
+                text="⚠️ Nenhum bloco válido no formato [EPISÓDIO: nome.mp4] + CORTE 1: <Título> foi encontrado.",
+                text_color=COR_VERMELHO,
+            )
+            return
+
+        for ep_res in res.episodios:
+            bloco_ui = ctk.CTkFrame(self.frame_previa, fg_color="#1A102A", corner_radius=8)
+            bloco_ui.pack(fill="x", padx=4, pady=4)
+
+            vinculado = bool(ep_res.ep_id)
+            cor_cab = COR_VERDE if vinculado else COR_AMARELO
+            status_vinc = (
+                f"✅ Vinculado a '{ep_res.ep_nome}' ({len(ep_res.itens)}/{ep_res.total_esperados or len(ep_res.itens)} cortes titulados)"
+                if vinculado
+                else f"⚠️ Episódio '{ep_res.nome_capturado}' não encontrado na fila atual"
+            )
+            ctk.CTkLabel(
+                bloco_ui,
+                text=f"🎬 [{ep_res.nome_capturado}] — {status_vinc}",
+                font=ctk.CTkFont(size=13, weight="bold"),
+                text_color=cor_cab,
+                anchor="w",
+            ).pack(fill="x", padx=10, pady=(6, 4))
+
+            for it in ep_res.itens:
+                ctk.CTkLabel(
+                    bloco_ui,
+                    text=f"   • Corte {it.indice}: {it.titulo}",
+                    font=ctk.CTkFont(size=12),
+                    text_color=COR_BRANCO if vinculado else COR_CINZA_CLARO,
+                    anchor="w",
+                    justify="left",
+                    wraplength=760,
+                ).pack(fill="x", padx=12, pady=1)
+
+        pode_aplicar = res.total_episodios_vinculados > 0
+        self.btn_aplicar.configure(state="normal" if pode_aplicar else "disabled")
+        self.btn_aplicar_exportar.configure(state="normal" if pode_aplicar else "disabled")
+
+        resumo = (
+            f"{res.total_episodios_vinculados} de {res.total_episodios_encontrados} episódio(s) vinculado(s) · "
+            f"{res.total_titulos_encontrados} título(s) identificado(s)."
+        )
+        if res.avisos:
+            resumo += "\n" + "\n".join(f"• {a}" for a in res.avisos[:5])
+        self.lbl_info.configure(
+            text=resumo,
+            text_color=COR_VERDE if (pode_aplicar and not res.avisos) else COR_AMARELO,
+        )
+
+    def _aplicar_global(self):
+        if not self.resultado or not self.resultado.episodios:
+            return
+        qtd_ep, total_titulos, ids_atualizados, avisos = aplicar_titulos_lote_global(
+            self.esteira, self.resultado
+        )
+        tela = self.tela
+        self.destroy()
+
+        if qtd_ep == 0 or total_titulos == 0:
+            tela.app.mostrar_aviso(
+                "Colar Títulos Globais",
+                "\n".join(avisos) or "Nenhum título pôde ser distribuído aos episódios da esteira.",
+            )
+            return
+
+        try:
+            for eid in ids_atualizados:
+                tela._atualizar_card_episodio(eid)
+            tela._atualizar_cabecalho_esteira()
+            if hasattr(tela, "lbl_status_lote_global"):
+                tela.lbl_status_lote_global.configure(
+                    text=f"✅ {total_titulos} cortes titulados em {qtd_ep} episódio(s)!",
+                    text_color=COR_VERDE,
+                )
+        except tk.TclError:
+            pass
+
+        msg = (
+            f"✅ Distribuição Global concluída com sucesso!\n\n"
+            f"• Episódios atualizados: {qtd_ep}\n"
+            f"• Total de cortes titulados: {total_titulos}\n\n"
+            "Todos os cards correspondentes na esteira já foram atualizados."
+        )
+        if avisos:
+            msg += "\n\nObservações:\n• " + "\n• ".join(avisos[:8])
+        tela.app.mostrar_info("Colar Títulos Globais", msg)
+
+    def _aplicar_e_exportar_global(self):
+        if not self.resultado or not self.resultado.episodios:
+            return
+        qtd_ep, total_titulos, ids_atualizados, avisos = aplicar_titulos_lote_global(
+            self.esteira, self.resultado
+        )
+        tela = self.tela
+        self.destroy()
+
+        if qtd_ep == 0 or total_titulos == 0:
+            tela.app.mostrar_aviso(
+                "Colar Títulos Globais",
+                "\n".join(avisos) or "Nenhum título pôde ser distribuído aos episódios da esteira.",
+            )
+            return
+
+        total_aprovados = 0
+        for eid in ids_atualizados:
+            qtd_aprov, avisos_aprov = tela.esteira.aprovar_e_exportar_episodio(eid)
+            total_aprovados += qtd_aprov
+            avisos.extend(avisos_aprov)
+
+        try:
+            for eid in ids_atualizados:
+                tela._atualizar_card_episodio(eid)
+            tela._atualizar_cabecalho_esteira()
+            if hasattr(tela, "lbl_status_lote_global"):
+                tela.lbl_status_lote_global.configure(
+                    text=f"🚀 {total_titulos} cortes titulados e {total_aprovados} enviados para exportação ({qtd_ep} episódio(s))!",
+                    text_color=COR_VERDE,
+                )
+        except tk.TclError:
+            pass
+
+        msg = (
+            f"🚀 Títulos distribuídos e exportação iniciada!\n\n"
+            f"• Episódios atualizados: {qtd_ep}\n"
+            f"• Cortes titulados: {total_titulos}\n"
+            f"• Cortes enviados para renderização: {total_aprovados}"
+        )
+        if avisos:
+            msg += "\n\nObservações:\n• " + "\n• ".join(avisos[:8])
+        tela.app.mostrar_info("Colar Títulos Globais", msg)
 
     def destroy(self):
         if self._after_analise is not None:
