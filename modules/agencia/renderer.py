@@ -21,8 +21,8 @@ from PIL import Image
 
 from modules import preset as P
 from modules.agencia.av import (
-    TAG_PROCESSADO, AjustesAgencia, filtro_audio_agencia, filtro_pos_escala, filtro_pre_escala,
-    flags_escala,
+    TAG_PROCESSADO, AjustesAgencia, filtro_audio_agencia, filtro_delogo_zona, filtro_pos_escala,
+    filtro_pre_escala, flags_escala,
 )
 from modules.agencia.layout import Enquadramento, TextoAjustado
 from modules.agencia.timeline import TimelineAgencia
@@ -203,11 +203,14 @@ def construir_grafo(
             acumulado += trecho.duracao
         atual_v, atual_a = saida_v, saida_a
 
-    pre = filtro_pre_escala(ajustes, aplicar_tratamento, info.largura, info.altura)
-    pos = filtro_pos_escala(ajustes, aplicar_tratamento)
     e = enquadramento
+    pre = filtro_pre_escala(ajustes, aplicar_tratamento, info.largura, info.altura)
+    dl_zona = filtro_delogo_zona(e.crop_w, e.crop_h, ativo=bool(ajustes.remover_logo and aplicar_tratamento))
+    pos = filtro_pos_escala(ajustes, aplicar_tratamento)
     cadeia_fg = (f"scale={e.escala_w}:{e.escala_h}{flags_escala(ajustes)},"
-                 f"crop={e.crop_w}:{e.crop_h}:{e.crop_x}:{e.crop_y}" + (f",{pos}" if pos else "") + ",setsar=1")
+                 f"crop={e.crop_w}:{e.crop_h}:{e.crop_x}:{e.crop_y}"
+                 + (f",{dl_zona}" if dl_zona else "")
+                 + (f",{pos}" if pos else "") + ",setsar=1")
     base = atual_v + (f"{pre}," if pre else "")
     grafo.append(f"{base}{cadeia_fg}[zona]")
 

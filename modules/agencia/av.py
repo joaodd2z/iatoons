@@ -131,15 +131,17 @@ def filtro_delogo(largura: int, altura: int, ativo: bool = True, canto: str = "d
         return ""
     filtros = []
 
-    # 1. Canto inferior esquerdo: 'Rede Canais' / 'NAIS HD'
+    # 1. Canto inferior esquerdo: 'Rede Canais' / 'SuperCanais' / 'NAIS HD'
     if canto in ("esquerdo", "ambos"):
-        w_esq = max(16, int(round(largura * 0.165)))
-        h_esq = max(16, int(round(altura * 0.125)))
-        margem_x_esq = max(8, int(round(largura * 0.02)))
-        margem_y_esq = max(8, int(round(altura * 0.03)))
-        x_esq = margem_x_esq
-        y_esq = max(0, altura - h_esq - margem_y_esq)
-        if x_esq + w_esq < largura and y_esq + h_esq < altura and w_esq > 4 and h_esq > 4:
+        w_esq = max(16, int(round(largura * 0.175)))
+        h_esq = max(16, int(round(altura * 0.135)))
+        x_esq = 1
+        y_esq = max(1, altura - h_esq - 1)
+        if x_esq + w_esq >= largura:
+            w_esq = largura - x_esq - 1
+        if y_esq + h_esq >= altura:
+            h_esq = altura - y_esq - 1
+        if w_esq > 4 and h_esq > 4:
             filtros.append(f"delogo=x={x_esq}:y={y_esq}:w={w_esq}:h={h_esq}")
 
     # 2. Canto inferior direito: 'Global HD' e emissoras
@@ -158,6 +160,24 @@ def filtro_delogo(largura: int, altura: int, ativo: bool = True, canto: str = "d
             filtros.append(f"delogo=x={x_dir}:y={y_dir}:w={w_dir}:h={h_dir}")
 
     return ",".join(filtros)
+
+
+def filtro_delogo_zona(largura: int, altura: int, ativo: bool = True) -> str:
+    """Limpa qualquer resquício de logo (ex: 'S' do SuperCanais / Rede Canais) no canto inferior esquerdo
+    da janela já recortada (pós-scale e pós-crop), independente do aspect ratio da fonte original."""
+    if not ativo or largura <= 16 or altura <= 16:
+        return ""
+    w_esq = max(16, int(round(largura * 0.13)))
+    h_esq = max(16, int(round(altura * 0.115)))
+    x_esq = 1
+    y_esq = max(1, altura - h_esq - 1)
+    if x_esq + w_esq >= largura:
+        w_esq = largura - x_esq - 1
+    if y_esq + h_esq >= altura:
+        h_esq = altura - y_esq - 1
+    if w_esq <= 4 or h_esq <= 4:
+        return ""
+    return f"delogo=x={x_esq}:y={y_esq}:w={w_esq}:h={h_esq}"
 
 
 def filtro_pre_escala(cfg: AjustesAgencia, aplicar: bool = True, largura: int = 0, altura: int = 0) -> str:
